@@ -108,13 +108,8 @@ class Evaluator(Thread):
         self.transform_matrix_lock = Lock()
         self._matrix = matrix
 
-        self.x_lock = Lock()
         self._x = x
-
-        self.y_lock = Lock()
         self._y = y
-
-        self.z_lock = Lock()
         self._z = z
 
         self.axis_lock = Lock()
@@ -128,18 +123,15 @@ class Evaluator(Thread):
 
     @property
     def x(self):
-        with self.x_lock:
-            return self._x
+        return self._x
 
     @property
     def y(self):
-        with self.y_lock:
-            return self._y
+        return self._y
 
     @property
     def z(self):
-        with self.z_lock:
-            return self._z
+        return self._z
 
     @property
     def matrix(self):
@@ -174,20 +166,20 @@ class Evaluator(Thread):
         pass
 
 rate = 44100
-window = 0.05
+window = 1
 time = np.arange(0, window, 1/rate).astype(np.float32)
 
 playback = Playback(rate)
 playback.start()
 
-x = SineWave(1, 440, 0, time)
-y = SineWave(1, 80, 0, time)
-z = SineWave(1, 60, 0, time)
+x = SineWave(1, 110, 0, time)
+y = SineWave(1, 220, 0, time)
+z = SineWave(1, 440, 0, time)
 x.start()
 y.start()
 z.start()
 
-evaluator = Evaluator(x, y, z, axis=1)
+evaluator = Evaluator(x, y, z, axis=0)
 
 evaluator.start()
 
@@ -196,12 +188,16 @@ theta = 0
 i = 0
 
 while True:
-    theta += 1
-    x.freq += 1
-    y.freq += 1
-    z.freq += 1
-    print(x.freq, y.freq, z.freq)
-    evaluator.matrix = np.array([[1, 0, 0], [0, np.cos(theta), -np.sin(theta)], [0, np.sin(theta), np.cos(theta)]])
+    theta_x = np.radians(i)
+    theta_y = np.radians(i)
+    theta_z = np.radians(i)
+    matrix_x = np.array([[1, 0, 0], [0, np.cos(theta_x), -np.sin(theta_x)], [0, np.sin(theta_x), np.cos(theta_x)]])
+    matrix_y = np.array([[np.cos(theta_y), 0, np.sin(theta_y)], [0, 1, 0], [-np.sin(theta_y), 0, np.cos(theta_y)]])
+    matrix_z = np.array([[np.cos(theta_z), -np.sin(theta_z), 0], [np.sin(theta_z), np.cos(theta_z), 0], [0, 0, 1]])
+    matrix = np.matmul(matrix_x, matrix_y)
+    matrix = np.matmul(matrix, matrix_z)
+
+    evaluator.matrix = matrix
 
     evaluator.join()
 
@@ -213,3 +209,4 @@ while True:
     playback.play()
     playback.join()
 
+    i += 11.25
