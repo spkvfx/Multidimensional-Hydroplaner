@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pyaudio
 
+### WARNING: This code produces a loud, high-pitched tone. Turn down the volume! ###
+
 class SineWave(Thread):
     def __init__(self, amp: float, freq: float, offset: float, time: np.ndarray):
         super().__init__()
@@ -172,8 +174,8 @@ time = np.arange(0, window, 1/rate).astype(np.float32)
 playback = Playback(rate)
 playback.start()
 
-x = SineWave(1, 110, 0, time)
-y = SineWave(1, 220, 0, time)
+x = SineWave(1, 440, 0, time)
+y = SineWave(1, 440, 0, time)
 z = SineWave(1, 440, 0, time)
 x.start()
 y.start()
@@ -199,11 +201,11 @@ while True:
 
     evaluator.matrix = matrix
 
-    evaluator.join()
-
     x.join()
     y.join()
     z.join()
+
+    evaluator.join()
 
     playback.signal = evaluator.signal
     playback.play()
