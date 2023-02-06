@@ -26,24 +26,28 @@ class Generator(Thread):
 
         self._factor = 2 * np.pi * self.freq
 
-    def sinewave(self):
-        return self.amp * np.sin((self._factor * self.time) + self.offset).astype(np.float32)
+        self._types = {
+            'sine': self.sinewave,
+            'square': self.squarewave,
+            'sawtooth': self.sawtoothwave
+        }
 
-    def squarewave(self):
-        factor = 2 * np.pi * self.freq
-        return self.amp * np.sign(np.sin((self._factor * self.time) + self.offset)).astype(np.float32)
+    @staticmethod
+    def sinewave(amp, factor, offset, time):
+        return amp * np.sin((factor * time) + offset).astype(np.float32)
 
-    def sawtoothwave(self):
-        return self.amp * (self._factor * self.time + self.offset) % (2 * np.pi) / np.pi - 1
+    @staticmethod
+    def squarewave(amp, factor, offset, time):
+        return amp * np.sign(np.sin((factor * time) + offset)).astype(np.float32)
+
+    @staticmethod
+    def sawtoothwave(amp, factor, offset, time):
+        return amp * (factor * time + offset) % (2 * np.pi) / np.pi - 1
+
     @property
     def signal(self):
         with self.signal_lock:
-            if self.type == 'sine':
-                return self.sinewave()
-            elif self.type == 'square':
-                return self.squarewave()
-            elif self.type == 'sawtooth':
-                return self.sawtoothwave()
+            return self._types[self.type](self.amp, self._factor, self.offset, self.time)
 
     @property
     def type(self):
