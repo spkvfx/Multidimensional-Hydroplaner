@@ -5,7 +5,7 @@ import pyaudio
 
 ### WARNING: This code produces a loud, high-pitched tone. Turn down the volume! ###
 
-class SineWave(Thread):
+class Generator(Thread):
     def __init__(self, amp: float, freq: float, offset: float, time: np.ndarray, type: str = 'sine'):
         super().__init__()
 
@@ -258,9 +258,9 @@ time = np.arange(0, window, 1/rate).astype(np.float32)
 playback = Playback(rate)
 playback.start()
 
-x = SineWave(1, 440, 0, time, type='sawtooth')
-y = SineWave(1, 440, 0, time, type='sine')
-z = SineWave(1, 440, 0, time, type='square')
+x = Generator(1, 440, 0, time, type='sawtooth')
+y = Generator(1, 440, 0, time, type='sine')
+z = Generator(1, 440, 0, time, type='square')
 x.start()
 y.start()
 z.start()
