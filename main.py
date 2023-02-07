@@ -136,13 +136,23 @@ class Playback(Thread):
         return
 
 class Evaluator(Thread):
-    def __init__(self, x, y, z, axis=0, matrix=np.identity(3)):
+    def __init__(self,
+                 x: Generator,
+                 y: Generator,
+                 z: Generator,
+                 axis: int = 0,
+                 projection: tuple = (0, [0,1,0]),
+                 matrix: np.array = np.identity(3)):
+
         super().__init__()
 
         self.signal_lock = Lock()
 
         self.transform_matrix_lock = Lock()
         self._matrix = matrix
+
+        self.projection_lock = Lock()
+        self._projection = projection
 
         self._x = x
         self._y = y
@@ -188,19 +198,55 @@ class Evaluator(Thread):
             self._axis = value
 
     @property
+    def projection(self):
+        with self.projection_lock:
+            return self._projection
+    @projection.setter
+    def projection(self, value):
+        with self.projection_lock:
+            self._projection = value
+
+    @property
+    def projection_matrix(self):
+        def m(quat):
+            # convert quaternion to rotation matrix
+            rot_matrix = np.array([[1 - 2 * (quat[2] ** 2 + quat[3] ** 2), 2 * (quat[1] * quat[2] - quat[0] * quat[3]),
+                                    2 * (quat[1] * quat[3] + quat[0] * quat[2])],
+                                   [2 * (quat[1] * quat[2] + quat[0] * quat[3]), 1 - 2 * (quat[1] ** 2 + quat[3] ** 2),
+                                    2 * (quat[2] * quat[3] - quat[0] * quat[1])],
+                                   [2 * (quat[1] * quat[3] - quat[0] * quat[2]),
+                                    2 * (quat[2] * quat[3] + quat[0] * quat[1]),
+                                    1 - 2 * (quat[1] ** 2 + quat[2] ** 2)]])
+
+
+            return rot_matrix
+
+        def q(angle, axis):
+            axis = np.array(axis)
+            axis = axis / np.linalg.norm(axis)
+            q = np.array([np.cos(angle / 2), axis[0] * np.sin(angle / 2), axis[1] * np.sin(angle / 2),
+                          axis[2] * np.sin(angle / 2)])
+            return q
+
+        quaternion = q(self.projection[0], self.projection[1])
+        return m(quaternion)
+
+    @property
     def signal(self):
+
+
         with self.signal_lock:
             # get each element of x.signal, y.signal, z.signal and compose them into an array of vectors
             vector_array = np.array([self.x.signal, self.y.signal, self.z.signal]).T
             vector_array = np.matmul(vector_array, self.matrix)
-            result = vector_array[:, self.axis].astype(np.float32)
+            projected_vectors = np.dot(vector_array, self.projection_matrix.T)
+
+            result = projected_vectors[:, self.axis].astype(np.float32)
+
             if np.max(result) == 0 or np.max(result) <= 1:
                 return result
             else:
                 return (result - np.min(result)) / (np.max(result) - np.min(result))
-            
-    def playback_callback(self, in_data, frame_count, time_info, status):
-        return self.signal, pyaudio.paContinue
 
     def run(self):
         return self.signal
@@ -262,14 +308,14 @@ time = np.arange(0, window, 1/rate).astype(np.float32)
 playback = Playback(rate)
 playback.start()
 
-x = Generator(1, 440, 0, time, type='sawtooth')
-y = Generator(1, 440, 0, time, type='sine')
-z = Generator(1, 440, 0, time, type='square')
+x = Generator(1, 440, 0, time, type='sine')
+y = Generator(1, 220, 0, time, type='sine')
+z = Generator(1, 80, 0, time, type='sine')
 x.start()
 y.start()
 z.start()
 
-evaluator = Evaluator(x, y, z, axis=0)
+evaluator = Evaluator(x, y, z, axis=1)
 evaluator.start()
 
 plotter = Plotter(evaluator.signal, plt, oneshot=True)
@@ -278,14 +324,16 @@ plt.show(block=False)
 plotter.clear()
 
 # evaluator.join()
-theta = 0
 i = 0
 
 
 while True:
-    theta_x = np.radians(i)
-    theta_y = np.radians(i)
-    theta_z = np.radians(i)
+    theta = np.radians(i)
+    evaluator.projection = (i, [0, 1, 1])
+
+    theta_x = np.radians(30)
+    theta_y = np.radians(30)
+    theta_z = np.radians(30)
 
     matrix_x = np.array([[1, 0, 0], [0, np.cos(theta_x), -np.sin(theta_x)], [0, np.sin(theta_x), np.cos(theta_x)]])
     matrix_y = np.array([[np.cos(theta_y), 0, np.sin(theta_y)], [0, 1, 0], [-np.sin(theta_y), 0, np.cos(theta_y)]])
